@@ -1,0 +1,23 @@
+{
+  "short_name": "Pensum UNEFA",
+  "name": "Pénsum Ingeniería de Sistemas - UNEFA",
+  "icons": [
+    {
+      "src": "/unefa-logo.png?v=2",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/unefa-logo.png?v=2",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#1e3a8a",
+  "display": "standalone",
+  "orientation": "portrait"
+}
