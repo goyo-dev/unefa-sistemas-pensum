@@ -1,9 +1,12 @@
 {
+  "homepage": "https://goyo-dev.github.io/unefa-sistemas-pensum",
   "name": "react-vite-ts",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist",
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
@@ -14,6 +17,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "gh-pages": "^6.1.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@typescript-eslint/eslint-plugin": "^8.17.0",
