@@ -5,7 +5,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](#)
 [![PWA Ready](https://img.shields.io/badge/PWA-Ready-success?style=for-the-badge&logo=pwa&logoColor=white)](#)
 
-¡Hola! 👋 Bienvenido al **Centro de Gestión Académica** diseñado específicamente para los estudiantes de Ingeniería de Sistemas. 
+¡Hola! 👋 Bienvenido al **Centro de Gestión Académica** diseñado específicamente para los estudiantes de Ingeniería de Sistemas de la UNEFA. 
 
 Esta herramienta nació para dejar atrás los cálculos a lápiz y papel. Aquí puedes trazar tu ruta académica, llevar el control de tus notas y proyectar tu Índice Ponderado en tiempo real, todo desde una interfaz fluida y moderna.
 
@@ -45,4 +45,4 @@ Para que la lectura del árbol sea intuitiva, cada tarjeta reacciona según tu p
 ---
 
 ## 🤝 Contribuciones
-Este es un proyecto construido para la comunidad. Si tienes ideas para mejorar la plataforma, detectas algún error en el flujo de prelaciones, o quieres proponer nuevas funciones, siéntete libre de abrir un **Issue** o enviar un **Pull Request**. ¡Todo aporte es bienvenido para seguir mejorando!
+Este es un proyecto construido para la comunidad de la UNEFA en general. Si tienes ideas para mejorar la plataforma, detectas algún error en el flujo de prelaciones, o quieres proponer nuevas funciones, siéntete libre de abrir un **Issue** o enviar un **Pull Request**. ¡Todo aporte es bienvenido para seguir mejorando!
