@@ -471,7 +471,7 @@ export default function App() {
   // --- LÓGICA DE EVENTOS DEL MOUSE (DRAG) ---
   const handleMouseDown = (e: React.MouseEvent) => {
     isDragging.current = true;
-    dragDistance.current = 0; // Reiniciamos la distancia en cada nuevo clic
+    dragDistance.current = 0;
     if (scrollContainerRef.current) {
       startPos.current = {
         x: e.pageX - scrollContainerRef.current.offsetLeft,
@@ -493,16 +493,14 @@ export default function App() {
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging.current || !scrollContainerRef.current) return;
 
-    e.preventDefault(); // Evita que se seleccione texto por accidente
+    e.preventDefault();
 
     const x = e.pageX - scrollContainerRef.current.offsetLeft;
     const y = e.pageY - scrollContainerRef.current.offsetTop;
 
-    // Multiplicamos por 1.5 para que el movimiento se sienta más ágil y fluido
     const walkX = (x - startPos.current.x) * 1.5;
     const walkY = (y - startPos.current.y) * 1.5;
 
-    // Calculamos si fue un clic real o si la intención era arrastrar
     dragDistance.current =
       Math.abs(x - startPos.current.x) + Math.abs(y - startPos.current.y);
 
@@ -512,7 +510,6 @@ export default function App() {
   // ------------------------------------------
 
   const handleCourseClick = (courseId: string) => {
-    // Si la persona movió el mouse arrastrando, ignoramos el clic para no abrir menús por error.
     if (dragDistance.current > 5) return;
 
     const course = pensumData.find((c) => c.id === courseId);
@@ -712,14 +709,14 @@ export default function App() {
         </div>
       )}
 
-      {/* Grid de Semestres con Drag to Scroll Activo */}
+      {/* Grid de Semestres - OPTIMIZADO PARA MOVIMIENTO LIBRE SUTIL */}
       <main
         ref={scrollContainerRef}
         onMouseDown={handleMouseDown}
         onMouseLeave={handleMouseLeave}
         onMouseUp={handleMouseUp}
         onMouseMove={handleMouseMove}
-        className="flex-1 overflow-auto p-4 sm:p-6 cursor-grab active:cursor-grabbing [&::-webkit-scrollbar]:h-2 sm:[&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600"
+        className="flex-1 overflow-auto p-4 sm:p-6 cursor-default active:cursor-grabbing [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 sm:[&::-webkit-scrollbar]:h-2.5 sm:[&::-webkit-scrollbar]:w-2.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600"
       >
         <div className="flex flex-row gap-4 sm:gap-6 pb-6 min-w-max select-none">
           {Object.keys(semestersData).map((semKeyStr) => {
@@ -1015,7 +1012,8 @@ export default function App() {
                 : "bg-slate-100 text-slate-500 border-slate-200"
             }`}
           >
-            💡 Tip: Usa el mouse para arrastrar y navegar por los semestres.
+            💡 Tip: Usa el mouse para arrastrar y navegar libremente en
+            diagonal.
           </div>
         </div>
       </footer>
