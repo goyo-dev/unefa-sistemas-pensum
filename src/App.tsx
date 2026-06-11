@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { useState, useMemo, useEffect, useRef } from "react";
+=======
+import { useState, useMemo, useEffect, useRef } from 'react';
+>>>>>>> b7855a31c9b79c536ee63c7c268b0b4ee8ef5fbe
 
 interface Course {
   id: string;
@@ -376,6 +380,13 @@ export default function App() {
   const dragDistance = useRef(0);
   // ----------------------------------------------------
 
+  // --- VARIABLES PARA EL ARRASTRE (DRAG TO SCROLL) ---
+  const scrollContainerRef = useRef<HTMLElement>(null);
+  const isDragging = useRef(false);
+  const startPos = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+  const dragDistance = useRef(0); 
+  // ----------------------------------------------------
+
   useEffect(() => {
     if (
       "serviceWorker" in navigator &&
@@ -492,6 +503,7 @@ export default function App() {
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging.current || !scrollContainerRef.current) return;
+<<<<<<< HEAD
 
     e.preventDefault(); // Evita que se seleccione texto por accidente
 
@@ -505,6 +517,20 @@ export default function App() {
     // Calculamos si fue un clic real o si la intención era arrastrar
     dragDistance.current =
       Math.abs(x - startPos.current.x) + Math.abs(y - startPos.current.y);
+=======
+    
+    e.preventDefault(); // Evita que se seleccione texto por accidente
+    
+    const x = e.pageX - scrollContainerRef.current.offsetLeft;
+    const y = e.pageY - scrollContainerRef.current.offsetTop;
+    
+    // Multiplicamos por 1.5 para que el movimiento se sienta más ágil y fluido
+    const walkX = (x - startPos.current.x) * 1.5; 
+    const walkY = (y - startPos.current.y) * 1.5;
+
+    // Calculamos si fue un clic real o si la intención era arrastrar
+    dragDistance.current = Math.abs(x - startPos.current.x) + Math.abs(y - startPos.current.y);
+>>>>>>> b7855a31c9b79c536ee63c7c268b0b4ee8ef5fbe
 
     scrollContainerRef.current.scrollLeft = startPos.current.scrollLeft - walkX;
     scrollContainerRef.current.scrollTop = startPos.current.scrollTop - walkY;
@@ -515,7 +541,11 @@ export default function App() {
     // Si la persona movió el mouse arrastrando, ignoramos el clic para no abrir menús por error.
     if (dragDistance.current > 5) return;
 
+<<<<<<< HEAD
     const course = pensumData.find((c) => c.id === courseId);
+=======
+    const course = pensumData.find(c => c.id === courseId);
+>>>>>>> b7855a31c9b79c536ee63c7c268b0b4ee8ef5fbe
     if (!course) return;
 
     const isPassed = courseId in passedCourses;
@@ -554,7 +584,11 @@ export default function App() {
   const handleSaveGrade = () => {
     if (!modalData.courseId) return;
     const grade = parseFloat(modalData.gradeStr);
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> b7855a31c9b79c536ee63c7c268b0b4ee8ef5fbe
     if (!isNaN(grade) && grade >= 10 && grade <= 20) {
       setPassedCourses((prev) => ({ ...prev, [modalData.courseId!]: grade }));
       setModalData({ isOpen: false, courseId: null, gradeStr: "" });
@@ -713,7 +747,11 @@ export default function App() {
       )}
 
       {/* Grid de Semestres con Drag to Scroll Activo */}
+<<<<<<< HEAD
       <main
+=======
+      <main 
+>>>>>>> b7855a31c9b79c536ee63c7c268b0b4ee8ef5fbe
         ref={scrollContainerRef}
         onMouseDown={handleMouseDown}
         onMouseLeave={handleMouseLeave}
@@ -722,12 +760,18 @@ export default function App() {
         className="flex-1 overflow-auto p-4 sm:p-6 cursor-grab active:cursor-grabbing [&::-webkit-scrollbar]:h-2 sm:[&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600"
       >
         <div className="flex flex-row gap-4 sm:gap-6 pb-6 min-w-max select-none">
+<<<<<<< HEAD
           {Object.keys(semestersData).map((semKeyStr) => {
+=======
+          
+          {Object.keys(semestersData).map(semKeyStr => {
+>>>>>>> b7855a31c9b79c536ee63c7c268b0b4ee8ef5fbe
             const semKey = parseInt(semKeyStr, 10);
             const courses = semestersData[semKey];
             const isFinished = courses.every((c) => c.id in passedCourses);
 
             return (
+<<<<<<< HEAD
               <div
                 key={semKey}
                 className="w-64 sm:w-80 flex flex-col shrink-0 h-full"
@@ -747,6 +791,12 @@ export default function App() {
                       ✓
                     </span>
                   )}
+=======
+              <div key={semKey} className="w-64 sm:w-80 flex flex-col shrink-0 h-full">
+                <div className={`p-2.5 sm:p-3 rounded-t-lg border-b-2 flex justify-between items-center shadow-sm transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border-slate-900 text-slate-200' : 'bg-slate-200 border-slate-300 text-slate-700'}`}>
+                  <h2 className="font-bold text-sm sm:text-base pointer-events-none">Semestre {semKey}</h2>
+                  {isFinished && <span className="text-emerald-500 text-lg font-bold pointer-events-none">✓</span>}
+>>>>>>> b7855a31c9b79c536ee63c7c268b0b4ee8ef5fbe
                 </div>
 
                 <div
@@ -826,6 +876,7 @@ export default function App() {
                         className={`p-2.5 sm:p-3 rounded transition-all duration-300 flex flex-col gap-1 relative overflow-hidden ${bgClass} ${borderClass} ${pathingOpacity}`}
                       >
                         {course.isCritical && !isTargetBlocked && (
+<<<<<<< HEAD
                           <div
                             className={`absolute top-0 right-0 text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded-bl-lg border-b border-l z-20 pointer-events-none ${
                               isDarkMode
@@ -833,11 +884,15 @@ export default function App() {
                                 : "bg-orange-100 text-orange-600 border-orange-200"
                             }`}
                           >
+=======
+                          <div className={`absolute top-0 right-0 text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded-bl-lg border-b border-l z-20 pointer-events-none ${isDarkMode ? 'bg-orange-950/60 text-orange-400 border-orange-500/20' : 'bg-orange-100 text-orange-600 border-orange-200'}`}>
+>>>>>>> b7855a31c9b79c536ee63c7c268b0b4ee8ef5fbe
                             🔥 Llave
                           </div>
                         )}
 
                         <div className="flex items-center gap-1.5 mt-0.5 pointer-events-none">
+<<<<<<< HEAD
                           <span className="text-xs sm:text-sm drop-shadow-sm z-10">
                             {statusIcon}
                           </span>
@@ -868,6 +923,28 @@ export default function App() {
                               }`}
                             >
                               Nota: {grade}
+=======
+                          <span className="text-xs sm:text-sm drop-shadow-sm z-10">{statusIcon}</span>
+                          <span className={`text-[9px] sm:text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${isDarkMode ? 'bg-slate-900/80 text-slate-400' : 'bg-slate-200/60 text-slate-600'}`}>
+                            {course.id}
+                          </span>
+                        </div>
+                        
+                        <span className={`text-xs sm:text-sm leading-tight mt-1 pointer-events-none ${textClass}`}>
+                          {course.name}
+                        </span>
+                        
+                        <div className="mt-auto pt-2 sm:pt-3 flex justify-between items-center pointer-events-none">
+                            {isPassed && grade > 0 ? (
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isDarkMode ? 'bg-emerald-900/40 text-emerald-300' : 'bg-emerald-200/40 text-emerald-700'}`}>
+                                    Nota: {grade}
+                                </span>
+                            ) : (
+                                <span></span>
+                            )}
+                            <span className={`text-[10px] font-semibold ${isPassed ? (isDarkMode ? 'text-emerald-500' : 'text-emerald-600') : (isDarkMode ? 'text-slate-600' : 'text-slate-400')}`}>
+                                {course.uc} UC
+>>>>>>> b7855a31c9b79c536ee63c7c268b0b4ee8ef5fbe
                             </span>
                           ) : (
                             <span></span>
@@ -927,12 +1004,19 @@ export default function App() {
               ({activeModalCourse.uc} UC)
             </p>
             <div className="flex flex-col gap-3">
+<<<<<<< HEAD
               <label className="text-xs uppercase tracking-wider font-bold opacity-75">
                 Nota Obtenida (10 al 20)
               </label>
               <input
                 type="number"
                 min="10"
+=======
+              <label className="text-xs uppercase tracking-wider font-bold opacity-75">Nota Obtenida (10 al 20)</label>
+              <input 
+                type="number" 
+                min="10" 
+>>>>>>> b7855a31c9b79c536ee63c7c268b0b4ee8ef5fbe
                 max="20"
                 placeholder="Ej: 16"
                 value={modalData.gradeStr}
@@ -982,6 +1066,7 @@ export default function App() {
       )}
 
       {/* Footer Compacto */}
+<<<<<<< HEAD
       <footer
         className={`border-t p-2 sm:p-4 sticky bottom-0 z-20 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] shrink-0 transition-colors duration-300 ${
           isDarkMode
@@ -995,6 +1080,11 @@ export default function App() {
               isDarkMode ? "text-slate-300" : "text-slate-700"
             }`}
           >
+=======
+      <footer className={`border-t p-2 sm:p-4 sticky bottom-0 z-20 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] shrink-0 transition-colors duration-300 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+        <div className="max-w-[1600px] mx-auto flex flex-col justify-center items-center gap-2 lg:flex-row lg:justify-between select-none">
+          <div className={`flex flex-wrap justify-center gap-x-4 gap-y-1.5 w-full lg:w-auto text-[10px] sm:text-sm font-medium ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+>>>>>>> b7855a31c9b79c536ee63c7c268b0b4ee8ef5fbe
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.8)] inline-block"></span>
               <span>Aprobadas: {Object.keys(passedCourses).length}</span>
@@ -1008,6 +1098,7 @@ export default function App() {
               <span>Materias Llave</span>
             </div>
           </div>
+<<<<<<< HEAD
           <div
             className={`text-[10px] sm:text-xs text-center px-3 py-1 rounded-full border w-full sm:max-w-md ${
               isDarkMode
@@ -1015,6 +1106,9 @@ export default function App() {
                 : "bg-slate-100 text-slate-500 border-slate-200"
             }`}
           >
+=======
+          <div className={`text-[10px] sm:text-xs text-center px-3 py-1 rounded-full border w-full sm:max-w-md ${isDarkMode ? 'bg-slate-800 text-slate-500 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+>>>>>>> b7855a31c9b79c536ee63c7c268b0b4ee8ef5fbe
             💡 Tip: Usa el mouse para arrastrar y navegar por los semestres.
           </div>
         </div>
