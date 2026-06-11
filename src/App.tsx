@@ -495,6 +495,7 @@ export default function App() {
     return unlocked;
   }, [passedCourses, studyingCourses, currentUC]);
 
+  // Funciones para el Drag-to-Scroll en PC
   const handleMouseDown = (e: React.MouseEvent) => {
     isDragging.current = true;
     dragDistance.current = 0;
@@ -532,6 +533,7 @@ export default function App() {
   };
 
   const handleCourseClick = (courseId: string) => {
+    // Si arrastramos el mapa en PC, ignoramos el clic para no abrir menús por accidente
     if (dragDistance.current > 5) return;
 
     const course = pensumData.find((c) => c.id === courseId);
@@ -545,14 +547,21 @@ export default function App() {
       const deps = getDependents(courseId);
       let confirmMsg = `¿Deseas desmarcar ${course.name}?`;
       if (deps.size > 0) {
-        confirmMsg = `⚠️ Si desmarcas ${course.name}, también se borrarán las notas de las materias que dependen de ella.\n¿Estás seguro?`;
+        confirmMsg = `⚠️ Si desmarcas ${course.name}, también se borrarán o bloquearán las materias que dependen de ella.\n¿Estás seguro?`;
       }
       if (window.confirm(confirmMsg)) {
+        // BUG CORREGIDO: Ahora el efecto dominó borra tanto las materias aprobadas como las que estés cursando que dependan de esta
         setPassedCourses((prev) => {
           const newPassed = { ...prev };
           delete newPassed[courseId];
           deps.forEach((dep) => delete newPassed[dep]);
           return newPassed;
+        });
+        setStudyingCourses((prev) => {
+          const newStudying = { ...prev };
+          delete newStudying[courseId];
+          deps.forEach((dep) => delete newStudying[dep]);
+          return newStudying;
         });
       }
       return;
@@ -790,7 +799,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* SECCIÓN 1: INSTRUCTIVO INTERACTIVO DE USO RÁPIDO */}
+      {/* Instructivo */}
       {showInstructions && (
         <div className="max-w-[1600px] mx-auto w-[calc(100%-2rem)] mt-4 p-4 rounded-xl border relative animate-fade-in text-xs sm:text-sm shadow-md bg-slate-100 border-slate-200 dark:bg-slate-900/50 dark:border-slate-800/80">
           <button
@@ -923,7 +932,6 @@ export default function App() {
                     const isStudying = course.id in studyingCourses;
                     const isUnlocked = unlockedCourses.has(course.id);
 
-                    // CORRECCIONES DE TYPESCRIPT: Valores por defecto seguros (Nullish Coalescing)
                     const grade = passedCourses[course.id] || 0;
                     const currentPoints = studyingCourses[course.id] || 0;
 
@@ -999,8 +1007,9 @@ export default function App() {
                     return (
                       <div
                         key={course.id}
-                        onMouseUp={() => handleCourseClick(course.id)}
-                        className={`p-2.5 sm:p-3 rounded transition-all duration-300 flex flex-col gap-1 relative overflow-hidden ${bgClass} ${borderClass} ${pathingOpacity}`}
+                        /* BUG CORREGIDO: Vuelve a ser onClick para asegurar que funcione en pantallas táctiles de celulares */
+                        onClick={() => handleCourseClick(course.id)}
+                        className={`p-2.5 sm:p-3 rounded transition-all duration-300 flex flex-col gap-1 relative overflow-hidden cursor-pointer ${bgClass} ${borderClass} ${pathingOpacity}`}
                       >
                         {course.isCritical && !isTargetBlocked && (
                           <div
@@ -1105,7 +1114,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* MODAL INTERACTIVO AVANZADO CON SOPORTE DE GESTIÓN FLEXIBLE */}
+      {/* Modal Interactivo de Gestión */}
       {modalData.isOpen && activeModalCourse && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
           <div
@@ -1230,7 +1239,6 @@ export default function App() {
                     </button>
                   </div>
 
-                  {/* CORRECCIÓN TYPESCRIPT: Usamos el courseId guardado y verificado en el modalData en lugar de la variable foránea */}
                   {modalData.courseId &&
                     studyingCourses[modalData.courseId] !== undefined && (
                       <button
