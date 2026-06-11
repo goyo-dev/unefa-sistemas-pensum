@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 
 interface Course {
   id: string;
@@ -121,6 +121,13 @@ export default function App() {
   
   const [semestersData] = useState<Record<number, Course[]>>(() => groupBySemester(pensumData));
 
+  // --- VARIABLES PARA EL ARRASTRE (DRAG TO SCROLL) ---
+  const scrollContainerRef = useRef<HTMLElement>(null);
+  const isDragging = useRef(false);
+  const startPos = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+  const dragDistance = useRef(0); 
+  // ----------------------------------------------------
+
   useEffect(() => {
     if ('serviceWorker' in navigator && import.meta.env.PROD && !window.location.hostname.includes('csb.app')) {
       window.addEventListener('load', () => {
@@ -205,7 +212,52 @@ export default function App() {
     return unlocked;
   }, [passedCourses, currentUC]);
 
+  // --- LÓGICA DE EVENTOS DEL MOUSE (DRAG) ---
+  const handleMouseDown = (e: React.MouseEvent) => {
+    isDragging.current = true;
+    dragDistance.current = 0; // Reiniciamos la distancia en cada nuevo clic
+    if (scrollContainerRef.current) {
+      startPos.current = {
+        x: e.pageX - scrollContainerRef.current.offsetLeft,
+        y: e.pageY - scrollContainerRef.current.offsetTop,
+        scrollLeft: scrollContainerRef.current.scrollLeft,
+        scrollTop: scrollContainerRef.current.scrollTop,
+      };
+    }
+  };
+
+  const handleMouseLeave = () => {
+    isDragging.current = false;
+  };
+
+  const handleMouseUp = () => {
+    isDragging.current = false;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging.current || !scrollContainerRef.current) return;
+    
+    e.preventDefault(); // Evita que se seleccione texto por accidente
+    
+    const x = e.pageX - scrollContainerRef.current.offsetLeft;
+    const y = e.pageY - scrollContainerRef.current.offsetTop;
+    
+    // Multiplicamos por 1.5 para que el movimiento se sienta más ágil y fluido
+    const walkX = (x - startPos.current.x) * 1.5; 
+    const walkY = (y - startPos.current.y) * 1.5;
+
+    // Calculamos si fue un clic real o si la intención era arrastrar
+    dragDistance.current = Math.abs(x - startPos.current.x) + Math.abs(y - startPos.current.y);
+
+    scrollContainerRef.current.scrollLeft = startPos.current.scrollLeft - walkX;
+    scrollContainerRef.current.scrollTop = startPos.current.scrollTop - walkY;
+  };
+  // ------------------------------------------
+
   const handleCourseClick = (courseId: string) => {
+    // Si la persona movió el mouse arrastrando, ignoramos el clic para no abrir menús por error.
+    if (dragDistance.current > 5) return;
+
     const course = pensumData.find(c => c.id === courseId);
     if (!course) return;
 
@@ -246,7 +298,6 @@ export default function App() {
     if (!modalData.courseId) return;
     const grade = parseFloat(modalData.gradeStr);
     
-    // VALIDACIÓN ACTUALIZADA: Solo acepta notas aprobatorias del 10 al 20
     if (!isNaN(grade) && grade >= 10 && grade <= 20) {
       setPassedCourses(prev => ({ ...prev, [modalData.courseId!]: grade }));
       setModalData({ isOpen: false, courseId: null, gradeStr: '' });
@@ -286,7 +337,7 @@ export default function App() {
       {/* Header */}
       <header className={`${isDarkMode ? 'bg-slate-900 border-b border-slate-800' : 'bg-blue-900'} text-white shadow-md relative overflow-hidden shrink-0 transition-colors duration-300`}>
         <div className="max-w-[1600px] mx-auto p-3 sm:p-5 flex flex-col items-center gap-3 sm:flex-row sm:justify-between relative z-10">
-          <div className="flex flex-col items-center sm:items-start">
+          <div className="flex flex-col items-center sm:items-start select-none">
             <h1 className="text-lg sm:text-2xl font-bold tracking-tight">
               Ingeniería de Sistemas <span className={`${isDarkMode ? 'text-slate-400' : 'text-blue-300'} hidden sm:inline`}>| UNEFA</span>
             </h1>
@@ -346,9 +397,16 @@ export default function App() {
         </div>
       )}
 
-      {/* Grid de Semestres */}
-      <main className="flex-1 overflow-x-auto p-4 sm:p-6 [&::-webkit-scrollbar]:h-2 sm:[&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600">
-        <div className="flex flex-row gap-4 sm:gap-6 pb-6 min-w-max">
+      {/* Grid de Semestres con Drag to Scroll Activo */}
+      <main 
+        ref={scrollContainerRef}
+        onMouseDown={handleMouseDown}
+        onMouseLeave={handleMouseLeave}
+        onMouseUp={handleMouseUp}
+        onMouseMove={handleMouseMove}
+        className="flex-1 overflow-auto p-4 sm:p-6 cursor-grab active:cursor-grabbing [&::-webkit-scrollbar]:h-2 sm:[&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600"
+      >
+        <div className="flex flex-row gap-4 sm:gap-6 pb-6 min-w-max select-none">
           
           {Object.keys(semestersData).map(semKeyStr => {
             const semKey = parseInt(semKeyStr, 10);
@@ -358,8 +416,8 @@ export default function App() {
             return (
               <div key={semKey} className="w-64 sm:w-80 flex flex-col shrink-0 h-full">
                 <div className={`p-2.5 sm:p-3 rounded-t-lg border-b-2 flex justify-between items-center shadow-sm transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border-slate-900 text-slate-200' : 'bg-slate-200 border-slate-300 text-slate-700'}`}>
-                  <h2 className="font-bold text-sm sm:text-base">Semestre {semKey}</h2>
-                  {isFinished && <span className="text-emerald-500 text-lg font-bold">✓</span>}
+                  <h2 className="font-bold text-sm sm:text-base pointer-events-none">Semestre {semKey}</h2>
+                  {isFinished && <span className="text-emerald-500 text-lg font-bold pointer-events-none">✓</span>}
                 </div>
                 
                 <div className={`p-2 sm:p-3 rounded-b-lg border border-t-0 flex-1 flex flex-col gap-2.5 sm:gap-3 shadow-sm transition-colors duration-300 ${isDarkMode ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
@@ -401,27 +459,27 @@ export default function App() {
                     return (
                       <div 
                         key={course.id}
-                        onClick={() => handleCourseClick(course.id)}
-                        className={`p-2.5 sm:p-3 rounded cursor-pointer transition-all duration-300 flex flex-col gap-1 select-none relative overflow-hidden ${bgClass} ${borderClass} ${pathingOpacity}`}
+                        onMouseUp={() => handleCourseClick(course.id)}
+                        className={`p-2.5 sm:p-3 rounded transition-all duration-300 flex flex-col gap-1 relative overflow-hidden ${bgClass} ${borderClass} ${pathingOpacity}`}
                       >
                         {course.isCritical && !isTargetBlocked && (
-                          <div className={`absolute top-0 right-0 text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded-bl-lg border-b border-l z-20 ${isDarkMode ? 'bg-orange-950/60 text-orange-400 border-orange-500/20' : 'bg-orange-100 text-orange-600 border-orange-200'}`}>
+                          <div className={`absolute top-0 right-0 text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded-bl-lg border-b border-l z-20 pointer-events-none ${isDarkMode ? 'bg-orange-950/60 text-orange-400 border-orange-500/20' : 'bg-orange-100 text-orange-600 border-orange-200'}`}>
                             🔥 Llave
                           </div>
                         )}
 
-                        <div className="flex items-center gap-1.5 mt-0.5">
+                        <div className="flex items-center gap-1.5 mt-0.5 pointer-events-none">
                           <span className="text-xs sm:text-sm drop-shadow-sm z-10">{statusIcon}</span>
                           <span className={`text-[9px] sm:text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${isDarkMode ? 'bg-slate-900/80 text-slate-400' : 'bg-slate-200/60 text-slate-600'}`}>
                             {course.id}
                           </span>
                         </div>
                         
-                        <span className={`text-xs sm:text-sm leading-tight mt-1 ${textClass}`}>
+                        <span className={`text-xs sm:text-sm leading-tight mt-1 pointer-events-none ${textClass}`}>
                           {course.name}
                         </span>
                         
-                        <div className="mt-auto pt-2 sm:pt-3 flex justify-between items-center">
+                        <div className="mt-auto pt-2 sm:pt-3 flex justify-between items-center pointer-events-none">
                             {isPassed && grade > 0 ? (
                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isDarkMode ? 'bg-emerald-900/40 text-emerald-300' : 'bg-emerald-200/40 text-emerald-700'}`}>
                                     Nota: {grade}
@@ -458,8 +516,6 @@ export default function App() {
             </p>
             <div className="flex flex-col gap-3">
               <label className="text-xs uppercase tracking-wider font-bold opacity-75">Nota Obtenida (10 al 20)</label>
-              
-              {/* INPUT ACTUALIZADO: Sin flechas nativas y validado de 10 a 20 */}
               <input 
                 type="number" 
                 min="10" 
@@ -471,7 +527,6 @@ export default function App() {
                 className={`w-full p-2.5 rounded-lg border font-semibold text-center text-lg outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isDarkMode ? 'bg-slate-950 border-slate-800 focus:border-blue-500 text-white' : 'bg-slate-50 border-slate-200 focus:border-blue-600'}`}
                 autoFocus
               />
-              
               <div className="flex gap-2.5 mt-2">
                 <button
                   onClick={() => setModalData({ isOpen: false, courseId: null, gradeStr: '' })}
@@ -493,7 +548,7 @@ export default function App() {
 
       {/* Footer Compacto */}
       <footer className={`border-t p-2 sm:p-4 sticky bottom-0 z-20 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.05)] shrink-0 transition-colors duration-300 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
-        <div className="max-w-[1600px] mx-auto flex flex-col justify-center items-center gap-2 lg:flex-row lg:justify-between">
+        <div className="max-w-[1600px] mx-auto flex flex-col justify-center items-center gap-2 lg:flex-row lg:justify-between select-none">
           <div className={`flex flex-wrap justify-center gap-x-4 gap-y-1.5 w-full lg:w-auto text-[10px] sm:text-sm font-medium ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.8)] inline-block"></span>
@@ -509,7 +564,7 @@ export default function App() {
             </div>
           </div>
           <div className={`text-[10px] sm:text-xs text-center px-3 py-1 rounded-full border w-full sm:max-w-md ${isDarkMode ? 'bg-slate-800 text-slate-500 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-            💡 Tip: Toca una materia bloqueada 🔒 para ver qué necesitas aprobar para verla.
+            💡 Tip: Usa el mouse para arrastrar y navegar por los semestres.
           </div>
         </div>
       </footer>
