@@ -344,6 +344,11 @@ export default function App() {
     return saved ? JSON.parse(saved) : true;
   });
 
+  const [showInstructions, setShowInstructions] = useState(() => {
+    const saved = localStorage.getItem("unefa-instructions-viewed");
+    return saved ? JSON.parse(saved) : true;
+  });
+
   const [passedCourses, setPassedCourses] = useState<Record<string, number>>(
     () => {
       const saved = localStorage.getItem("unefa-sistemas-grades");
@@ -351,30 +356,40 @@ export default function App() {
     }
   );
 
+  const [studyingCourses, setStudyingCourses] = useState<
+    Record<string, number>
+  >(() => {
+    const saved = localStorage.getItem("unefa-sistemas-studying");
+    return saved ? JSON.parse(saved) : {};
+  });
+
   const [selectedBlockedCourse, setSelectedBlockedCourse] = useState<
     string | null
   >(null);
 
+  const [modalTab, setModalTab] = useState<"study" | "approve">("study");
   const [modalData, setModalData] = useState<{
     isOpen: boolean;
     courseId: string | null;
     gradeStr: string;
+    pointsStr: string;
+    noGrade: boolean;
   }>({
     isOpen: false,
     courseId: null,
     gradeStr: "",
+    pointsStr: "",
+    noGrade: false,
   });
 
   const [semestersData] = useState<Record<number, Course[]>>(() =>
     groupBySemester(pensumData)
   );
 
-  // --- VARIABLES PARA EL ARRASTRE (DRAG TO SCROLL) ---
   const scrollContainerRef = useRef<HTMLElement>(null);
   const isDragging = useRef(false);
   const startPos = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
   const dragDistance = useRef(0);
-  // ----------------------------------------------------
 
   useEffect(() => {
     if (
@@ -383,9 +398,7 @@ export default function App() {
       !window.location.hostname.includes("csb.app")
     ) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker
-          .register("/sw.js")
-          .catch((err) => console.log("Service Worker no registrado:", err));
+        navigator.serviceWorker.register("/sw.js").catch(() => {});
       });
     }
   }, []);
@@ -401,10 +414,24 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem(
+      "unefa-instructions-viewed",
+      JSON.stringify(showInstructions)
+    );
+  }, [showInstructions]);
+
+  useEffect(() => {
+    localStorage.setItem(
       "unefa-sistemas-grades",
       JSON.stringify(passedCourses)
     );
   }, [passedCourses]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "unefa-sistemas-studying",
+      JSON.stringify(studyingCourses)
+    );
+  }, [studyingCourses]);
 
   const getDependents = (courseId: string) => {
     const dependents = new Set<string>();
@@ -456,7 +483,7 @@ export default function App() {
   const unlockedCourses = useMemo(() => {
     const unlocked = new Set<string>();
     pensumData.forEach((course) => {
-      if (!(course.id in passedCourses)) {
+      if (!(course.id in passedCourses) && !(course.id in studyingCourses)) {
         if (course.id === "PSI-30010") {
           if (currentUC >= TOTAL_UC_REQUIRED) unlocked.add(course.id);
         } else {
@@ -466,9 +493,8 @@ export default function App() {
       }
     });
     return unlocked;
-  }, [passedCourses, currentUC]);
+  }, [passedCourses, studyingCourses, currentUC]);
 
-  // --- LÓGICA DE EVENTOS DEL MOUSE (DRAG) ---
   const handleMouseDown = (e: React.MouseEvent) => {
     isDragging.current = true;
     dragDistance.current = 0;
@@ -492,12 +518,9 @@ export default function App() {
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging.current || !scrollContainerRef.current) return;
-
     e.preventDefault();
-
     const x = e.pageX - scrollContainerRef.current.offsetLeft;
     const y = e.pageY - scrollContainerRef.current.offsetTop;
-
     const walkX = (x - startPos.current.x) * 1.5;
     const walkY = (y - startPos.current.y) * 1.5;
 
@@ -507,7 +530,6 @@ export default function App() {
     scrollContainerRef.current.scrollLeft = startPos.current.scrollLeft - walkX;
     scrollContainerRef.current.scrollTop = startPos.current.scrollTop - walkY;
   };
-  // ------------------------------------------
 
   const handleCourseClick = (courseId: string) => {
     if (dragDistance.current > 5) return;
@@ -516,6 +538,7 @@ export default function App() {
     if (!course) return;
 
     const isPassed = courseId in passedCourses;
+    const isStudying = courseId in studyingCourses;
     const isUnlocked = unlockedCourses.has(courseId);
 
     if (isPassed) {
@@ -535,30 +558,91 @@ export default function App() {
       return;
     }
 
-    if (isUnlocked) {
+    if (isUnlocked || isStudying) {
       setSelectedBlockedCourse(null);
       if (course.id === "PSI-30010") {
         setPassedCourses((prev) => ({ ...prev, [courseId]: 0 }));
         return;
       }
-      setModalData({ isOpen: true, courseId, gradeStr: "" });
+
+      setModalTab(isStudying ? "study" : "approve");
+      setModalData({
+        isOpen: true,
+        courseId,
+        gradeStr: "",
+        pointsStr: isStudying ? studyingCourses[courseId].toString() : "",
+        noGrade: false,
+      });
       return;
     }
 
     setSelectedBlockedCourse((prev) => (prev === courseId ? null : courseId));
   };
 
-  const handleSaveGrade = () => {
+  const handleSaveModalData = () => {
     if (!modalData.courseId) return;
-    const grade = parseFloat(modalData.gradeStr);
 
-    if (!isNaN(grade) && grade >= 10 && grade <= 20) {
-      setPassedCourses((prev) => ({ ...prev, [modalData.courseId!]: grade }));
-      setModalData({ isOpen: false, courseId: null, gradeStr: "" });
+    if (modalTab === "study") {
+      const pts = parseFloat(modalData.pointsStr || "0");
+      if (!isNaN(pts) && pts >= 0 && pts <= 20) {
+        setPassedCourses((prev) => {
+          const next = { ...prev };
+          delete next[modalData.courseId!];
+          return next;
+        });
+        setStudyingCourses((prev) => ({ ...prev, [modalData.courseId!]: pts }));
+        setModalData({
+          isOpen: false,
+          courseId: null,
+          gradeStr: "",
+          pointsStr: "",
+          noGrade: false,
+        });
+      } else {
+        window.alert(
+          "Por favor, ingresa una nota válida de tus cortes entre 0 y 20."
+        );
+      }
     } else {
-      window.alert(
-        "Por favor, ingresa una nota aprobatoria válida entre 10 y 20."
-      );
+      if (modalData.noGrade) {
+        setStudyingCourses((prev) => {
+          const next = { ...prev };
+          delete next[modalData.courseId!];
+          return next;
+        });
+        setPassedCourses((prev) => ({ ...prev, [modalData.courseId!]: 0 }));
+        setModalData({
+          isOpen: false,
+          courseId: null,
+          gradeStr: "",
+          pointsStr: "",
+          noGrade: false,
+        });
+      } else {
+        const grade = parseFloat(modalData.gradeStr);
+        if (!isNaN(grade) && grade >= 10 && grade <= 20) {
+          setStudyingCourses((prev) => {
+            const next = { ...prev };
+            delete next[modalData.courseId!];
+            return next;
+          });
+          setPassedCourses((prev) => ({
+            ...prev,
+            [modalData.courseId!]: grade,
+          }));
+          setModalData({
+            isOpen: false,
+            courseId: null,
+            gradeStr: "",
+            pointsStr: "",
+            noGrade: false,
+          });
+        } else {
+          window.alert(
+            "Por favor, ingresa una nota aprobatoria válida entre 10 y 20."
+          );
+        }
+      }
     }
   };
 
@@ -583,12 +667,14 @@ export default function App() {
   const resetProgress = () => {
     if (
       window.confirm(
-        "¿Estás seguro de que quieres reiniciar tu progreso y tus notas?"
+        "¿Estás seguro de que quieres reiniciar tu progreso, notas y materias en curso?"
       )
     ) {
       setPassedCourses({});
+      setStudyingCourses({});
       setSelectedBlockedCourse(null);
       localStorage.removeItem("unefa-sistemas-grades");
+      localStorage.removeItem("unefa-sistemas-studying");
     }
   };
 
@@ -670,6 +756,19 @@ export default function App() {
 
             <div className="flex gap-1.5 ml-1">
               <button
+                onClick={() => setShowInstructions(!showInstructions)}
+                className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg font-semibold transition-colors shadow-sm border ${
+                  showInstructions
+                    ? "bg-blue-600 border-blue-500 text-white"
+                    : isDarkMode
+                    ? "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300"
+                    : "bg-blue-800 hover:bg-blue-700 border-blue-700 text-slate-100"
+                }`}
+                title="Manual de Instrucciones"
+              >
+                📘
+              </button>
+              <button
                 onClick={() => setIsDarkMode(!isDarkMode)}
                 className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg font-semibold transition-colors shadow-sm border ${
                   isDarkMode
@@ -691,9 +790,75 @@ export default function App() {
         </div>
       </header>
 
-      {/* Banner Informativo de Trazado Activo */}
+      {/* SECCIÓN 1: INSTRUCTIVO INTERACTIVO DE USO RÁPIDO */}
+      {showInstructions && (
+        <div className="max-w-[1600px] mx-auto w-[calc(100%-2rem)] mt-4 p-4 rounded-xl border relative animate-fade-in text-xs sm:text-sm shadow-md bg-slate-100 border-slate-200 dark:bg-slate-900/50 dark:border-slate-800/80">
+          <button
+            onClick={() => setShowInstructions(false)}
+            className="absolute top-2 right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm font-bold p-1 transition-colors"
+            title="Ocultar Manual"
+          >
+            ✕
+          </button>
+          <h3 className="font-bold text-sm sm:text-base mb-2 flex items-center gap-1.5 text-blue-900 dark:text-blue-400">
+            📘 Guía de Uso del Sistema
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 mt-2">
+            <div className="p-2 rounded border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-950/40">
+              <span className="text-sm">🔒 Bloqueada</span>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Materias con prelaciones pendientes. **Tócala para iluminar su
+                ruta de requisitos obligatorios (`🎯`)**.
+              </p>
+            </div>
+            <div className="p-2 rounded border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-950/40">
+              <span className="text-sm text-blue-500 dark:text-blue-400">
+                📌 Disponible
+              </span>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                ¡Listo para gestionar! Haz clic para marcarla como **Cursando
+                actualmente** o registrarla como **Aprobada**.
+              </p>
+            </div>
+            <div className="p-2 rounded border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-950/40">
+              <span className="text-sm text-purple-500 dark:text-purple-400">
+                📖 Cursando
+              </span>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Asignaturas de tu semestre activo. Calcula de forma automática
+                cuántos puntos te faltan para el 10 mínimo.
+              </p>
+            </div>
+            <div className="p-2 rounded border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-950/40">
+              <span className="text-sm text-emerald-500 dark:text-emerald-400">
+                ✅ Aprobada
+              </span>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Materia superada. Suma créditos inmediatos y pondera su
+                calificación matemática en tu Índice.
+              </p>
+            </div>
+            <div className="p-2 rounded border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-950/40">
+              <span className="text-sm text-orange-500 dark:text-orange-400">
+                🔥 Llave
+              </span>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Asignaturas críticas de alta prioridad que abren múltiples
+                ramificaciones importantes en el futuro.
+              </p>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-400 mt-2 text-center font-medium">
+            🖱️ **Navegación libre en PC:** Mantén pulsado el clic izquierdo en
+            un área vacía y arrastra hacia cualquier dirección (360°) para
+            explorar todo el mapa.
+          </p>
+        </div>
+      )}
+
+      {/* Banner de Trazado Activo */}
       {selectedBlockedCourse && (
-        <div className="bg-orange-500 text-white px-4 py-2 text-xs sm:text-sm font-semibold flex justify-between items-center animate-fade-in shadow-inner shrink-0">
+        <div className="bg-orange-500 text-white px-4 py-2 text-xs sm:text-sm font-semibold flex justify-between items-center animate-fade-in shadow-inner shrink-0 mt-3 mx-4 rounded-lg">
           <span>
             📍 Mostrando ruta para desbloquear:{" "}
             <strong className="underline">
@@ -709,7 +874,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Grid de Semestres - OPTIMIZADO PARA MOVIMIENTO LIBRE SUTIL */}
+      {/* Grid de Semestres */}
       <main
         ref={scrollContainerRef}
         onMouseDown={handleMouseDown}
@@ -755,8 +920,12 @@ export default function App() {
                 >
                   {courses.map((course) => {
                     const isPassed = course.id in passedCourses;
+                    const isStudying = course.id in studyingCourses;
                     const isUnlocked = unlockedCourses.has(course.id);
-                    const grade = passedCourses[course.id];
+
+                    // CORRECCIONES DE TYPESCRIPT: Valores por defecto seguros (Nullish Coalescing)
+                    const grade = passedCourses[course.id] || 0;
+                    const currentPoints = studyingCourses[course.id] || 0;
 
                     const isInActivePath = activePath
                       ? activePath.has(course.id)
@@ -795,6 +964,17 @@ export default function App() {
                         ? "text-emerald-300"
                         : "text-emerald-800";
                       statusIcon = "✅";
+                    } else if (isStudying) {
+                      bgClass = isDarkMode
+                        ? "bg-purple-950/20 hover:bg-purple-950/40"
+                        : "bg-purple-50/70 hover:bg-purple-100/70";
+                      borderClass = isDarkMode
+                        ? "border-2 border-purple-500/70 shadow-[0_0_10px_rgba(168,85,247,0.15)]"
+                        : "border-2 border-purple-400";
+                      textClass = isDarkMode
+                        ? "text-purple-300 font-medium"
+                        : "text-purple-900 font-medium";
+                      statusIcon = "📖";
                     } else if (isUnlocked) {
                       bgClass = isDarkMode
                         ? "bg-blue-900/10 hover:bg-blue-900/30 shadow-sm"
@@ -856,15 +1036,43 @@ export default function App() {
                         </span>
 
                         <div className="mt-auto pt-2 sm:pt-3 flex justify-between items-center pointer-events-none">
-                          {isPassed && grade > 0 ? (
+                          {isPassed ? (
+                            grade > 0 ? (
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                  isDarkMode
+                                    ? "bg-emerald-900/40 text-emerald-300"
+                                    : "bg-emerald-200/40 text-emerald-700"
+                                }`}
+                              >
+                                Nota: {grade}
+                              </span>
+                            ) : (
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                  isDarkMode
+                                    ? "bg-slate-800 text-slate-400"
+                                    : "bg-slate-200 text-slate-600"
+                                }`}
+                              >
+                                ✓ S/N
+                              </span>
+                            )
+                          ) : isStudying ? (
                             <span
                               className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                                 isDarkMode
-                                  ? "bg-emerald-900/40 text-emerald-300"
-                                  : "bg-emerald-200/40 text-emerald-700"
+                                  ? "bg-purple-900/40 text-purple-300"
+                                  : "bg-purple-200/50 text-purple-700"
                               }`}
                             >
-                              Nota: {grade}
+                              {currentPoints > 0 && currentPoints < 10
+                                ? `Faltan ${(10 - currentPoints).toFixed(
+                                    1
+                                  )} pts`
+                                : currentPoints >= 10
+                                ? "¡Ya aprobada! 🎉"
+                                : "Faltan 10 pts"}
                             </span>
                           ) : (
                             <span></span>
@@ -875,6 +1083,10 @@ export default function App() {
                                 ? isDarkMode
                                   ? "text-emerald-500"
                                   : "text-emerald-600"
+                                : isStudying
+                                ? isDarkMode
+                                  ? "text-purple-400"
+                                  : "text-purple-600"
                                 : isDarkMode
                                 ? "text-slate-600"
                                 : "text-slate-400"
@@ -893,13 +1105,19 @@ export default function App() {
         </div>
       </main>
 
-      {/* Modal Interactivo Elegante */}
+      {/* MODAL INTERACTIVO AVANZADO CON SOPORTE DE GESTIÓN FLEXIBLE */}
       {modalData.isOpen && activeModalCourse && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
           <div
             className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
             onClick={() =>
-              setModalData({ isOpen: false, courseId: null, gradeStr: "" })
+              setModalData({
+                isOpen: false,
+                courseId: null,
+                gradeStr: "",
+                pointsStr: "",
+                noGrade: false,
+              })
             }
           ></div>
           <div
@@ -909,71 +1127,229 @@ export default function App() {
                 : "bg-white border-slate-200 text-slate-800"
             }`}
           >
-            <h3 className="text-base sm:text-lg font-bold tracking-tight mb-1">
-              Registrar Calificación
+            <h3 className="text-base sm:text-lg font-bold tracking-tight mb-0.5">
+              Gestionar Asignatura
             </h3>
             <p
               className={`text-xs mb-4 font-medium ${
                 isDarkMode ? "text-slate-400" : "text-slate-500"
               }`}
             >
-              Asignatura:{" "}
               <span className={isDarkMode ? "text-blue-400" : "text-blue-600"}>
                 {activeModalCourse.name}
               </span>{" "}
               ({activeModalCourse.uc} UC)
             </p>
-            <div className="flex flex-col gap-3">
-              <label className="text-xs uppercase tracking-wider font-bold opacity-75">
-                Nota Obtenida (10 al 20)
-              </label>
-              <input
-                type="number"
-                min="10"
-                max="20"
-                placeholder="Ej: 16"
-                value={modalData.gradeStr}
-                onChange={(e) =>
-                  setModalData((prev) => ({
-                    ...prev,
-                    gradeStr: e.target.value,
-                  }))
-                }
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSaveGrade();
-                }}
-                className={`w-full p-2.5 rounded-lg border font-semibold text-center text-lg outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                  isDarkMode
-                    ? "bg-slate-950 border-slate-800 focus:border-blue-500 text-white"
-                    : "bg-slate-50 border-slate-200 focus:border-blue-600"
+
+            <div className="flex border-b border-slate-200 dark:border-slate-800 mb-4">
+              <button
+                type="button"
+                onClick={() => setModalTab("study")}
+                className={`flex-1 pb-2 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${
+                  modalTab === "study"
+                    ? "border-purple-500 text-purple-500"
+                    : "border-transparent text-slate-400 hover:text-slate-500"
                 }`}
-                autoFocus
-              />
-              <div className="flex gap-2.5 mt-2">
-                <button
-                  onClick={() =>
-                    setModalData({
-                      isOpen: false,
-                      courseId: null,
-                      gradeStr: "",
-                    })
-                  }
-                  className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-colors ${
-                    isDarkMode
-                      ? "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300"
-                      : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-600"
+              >
+                📖 Cursando
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalTab("approve")}
+                className={`flex-1 pb-2 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${
+                  modalTab === "approve"
+                    ? "border-blue-500 text-blue-500"
+                    : "border-transparent text-slate-400 hover:text-slate-500"
+                }`}
+              >
+                ✅ Ya la aprobé
+              </button>
+            </div>
+
+            {modalTab === "study" && (
+              <div className="flex flex-col gap-3 animate-fade-in">
+                <p
+                  className={`text-[11px] leading-relaxed ${
+                    isDarkMode ? "text-slate-400" : "text-slate-600"
                   }`}
                 >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleSaveGrade}
-                  className="flex-1 py-2 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-md transition-colors"
-                >
-                  Guardar Nota
-                </button>
+                  Marca esta materia si la estás viendo este semestre. Puedes
+                  indicar opcionalmente tus puntos acumulados actuales para
+                  saber cuánto te falta.
+                </p>
+                <label className="text-xs uppercase tracking-wider font-bold opacity-75">
+                  Nota Acumulada Actual (Opcional, 0 a 9.5)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="20"
+                  placeholder="Ej: 4.5 (deja en 0 si está iniciando)"
+                  value={modalData.pointsStr}
+                  onChange={(e) =>
+                    setModalData((prev) => ({
+                      ...prev,
+                      pointsStr: e.target.value,
+                    }))
+                  }
+                  className={`w-full p-2 rounded-lg border font-semibold text-center text-sm outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                    isDarkMode
+                      ? "bg-slate-950 border-slate-800 focus:border-purple-500 text-white"
+                      : "bg-slate-50 border-slate-200 focus:border-purple-600"
+                  }`}
+                />
+
+                <div className="flex flex-col gap-2 mt-2">
+                  <div className="flex gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setModalData({
+                          isOpen: false,
+                          courseId: null,
+                          gradeStr: "",
+                          pointsStr: "",
+                          noGrade: false,
+                        })
+                      }
+                      className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                        isDarkMode
+                          ? "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300"
+                          : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-600"
+                      }`}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveModalData}
+                      className="flex-1 py-2 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white shadow-md transition-colors"
+                    >
+                      Guardar Cursando
+                    </button>
+                  </div>
+
+                  {/* CORRECCIÓN TYPESCRIPT: Usamos el courseId guardado y verificado en el modalData en lugar de la variable foránea */}
+                  {modalData.courseId &&
+                    studyingCourses[modalData.courseId] !== undefined && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStudyingCourses((prev) => {
+                            const next = { ...prev };
+                            delete next[modalData.courseId!];
+                            return next;
+                          });
+                          setModalData({
+                            isOpen: false,
+                            courseId: null,
+                            gradeStr: "",
+                            pointsStr: "",
+                            noGrade: false,
+                          });
+                        }}
+                        className="w-full py-1.5 rounded-lg text-[11px] font-semibold text-red-500 bg-red-500/10 hover:bg-red-500/20 transition-colors mt-1"
+                      >
+                        Quitar de "Cursando"
+                      </button>
+                    )}
+                </div>
               </div>
-            </div>
+            )}
+
+            {modalTab === "approve" && (
+              <div className="flex flex-col gap-3 animate-fade-in">
+                <p
+                  className={`text-[11px] leading-relaxed ${
+                    isDarkMode ? "text-slate-400" : "text-slate-600"
+                  }`}
+                >
+                  Registra la materia como aprobada. Esto recalculará tus UC y
+                  desbloqueará las asignaturas que dependen de ella.
+                </p>
+
+                <div className="flex items-center gap-2 py-1 select-none cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="noGradeCheck"
+                    checked={modalData.noGrade}
+                    onChange={(e) =>
+                      setModalData((prev) => ({
+                        ...prev,
+                        noGrade: e.target.checked,
+                      }))
+                    }
+                    className="rounded bg-slate-950 border-slate-800 text-blue-600 focus:ring-0 cursor-pointer w-4 h-4"
+                  />
+                  <label
+                    htmlFor="noGradeCheck"
+                    className="text-xs font-medium opacity-80 cursor-pointer"
+                  >
+                    Solo interactuar (Aprobar sin ingresar nota)
+                  </label>
+                </div>
+
+                {!modalData.noGrade && (
+                  <>
+                    <label className="text-xs uppercase tracking-wider font-bold opacity-75">
+                      Nota Final Obtenida (10 al 20)
+                    </label>
+                    <input
+                      type="number"
+                      min="10"
+                      max="20"
+                      placeholder="Ej: 16"
+                      value={modalData.gradeStr}
+                      onChange={(e) =>
+                        setModalData((prev) => ({
+                          ...prev,
+                          gradeStr: e.target.value,
+                        }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveModalData();
+                      }}
+                      className={`w-full p-2.5 rounded-lg border font-semibold text-center text-lg outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                        isDarkMode
+                          ? "bg-slate-950 border-slate-800 focus:border-blue-500 text-white"
+                          : "bg-slate-50 border-slate-200 focus:border-blue-600"
+                      }`}
+                      autoFocus
+                    />
+                  </>
+                )}
+
+                <div className="flex gap-2.5 mt-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setModalData({
+                        isOpen: false,
+                        courseId: null,
+                        gradeStr: "",
+                        pointsStr: "",
+                        noGrade: false,
+                      })
+                    }
+                    className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                      isDarkMode
+                        ? "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300"
+                        : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-600"
+                    }`}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveModalData}
+                    className="flex-1 py-2 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-md transition-colors"
+                  >
+                    Guardar Nota
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -997,6 +1373,10 @@ export default function App() {
               <span>Aprobadas: {Object.keys(passedCourses).length}</span>
             </div>
             <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-purple-400 shadow-[0_0_5px_rgba(168,85,247,0.8)] inline-block"></span>
+              <span>Cursando: {Object.keys(studyingCourses).length}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.8)] inline-block"></span>
               <span>Disponibles: {unlockedCourses.size}</span>
             </div>
@@ -1012,8 +1392,8 @@ export default function App() {
                 : "bg-slate-100 text-slate-500 border-slate-200"
             }`}
           >
-            💡 Tip: Usa el mouse para arrastrar y navegar libremente en
-            diagonal.
+            💡 Tip: Haz clic en el botón azul de libro (📘) de arriba para abrir
+            el manual de instrucciones.
           </div>
         </div>
       </footer>
