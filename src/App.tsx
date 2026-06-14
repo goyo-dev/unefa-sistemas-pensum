@@ -387,6 +387,7 @@ export default function App() {
   );
 
   const scrollContainerRef = useRef<HTMLElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const isDragging = useRef(false);
   const startPos = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
   const dragDistance = useRef(0);
@@ -432,6 +433,49 @@ export default function App() {
       JSON.stringify(studyingCourses)
     );
   }, [studyingCourses]);
+
+  const handleExportData = () => {
+    const backupData = {
+      version: 1.0,
+      date: new Date().toISOString(),
+      passedCourses,
+      studyingCourses,
+    };
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `unefa_respaldo_${new Date()
+      .toLocaleDateString()
+      .replace(/\//g, "-")}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        if (data.passedCourses !== undefined)
+          setPassedCourses(data.passedCourses);
+        if (data.studyingCourses !== undefined)
+          setStudyingCourses(data.studyingCourses);
+        window.alert(
+          "¡Respaldo cargado con éxito! Tus notas han sido restauradas."
+        );
+      } catch (error) {
+        window.alert("Error: El archivo no es válido o está corrupto.");
+      }
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+    reader.readAsText(file);
+  };
 
   const getDependents = (courseId: string) => {
     const dependents = new Set<string>();
@@ -495,7 +539,6 @@ export default function App() {
     return unlocked;
   }, [passedCourses, studyingCourses, currentUC]);
 
-  // Funciones para el Drag-to-Scroll en PC
   const handleMouseDown = (e: React.MouseEvent) => {
     isDragging.current = true;
     dragDistance.current = 0;
@@ -533,7 +576,6 @@ export default function App() {
   };
 
   const handleCourseClick = (courseId: string) => {
-    // Si arrastramos el mapa en PC, ignoramos el clic para no abrir menús por accidente
     if (dragDistance.current > 5) return;
 
     const course = pensumData.find((c) => c.id === courseId);
@@ -547,10 +589,9 @@ export default function App() {
       const deps = getDependents(courseId);
       let confirmMsg = `¿Deseas desmarcar ${course.name}?`;
       if (deps.size > 0) {
-        confirmMsg = `⚠️ Si desmarcas ${course.name}, también se borrarán o bloquearán las materias que dependen de ella.\n¿Estás seguro?`;
+        confirmMsg = `⚠️ Si desmarcas ${course.name}, también se borrarán las notas de las materias que dependen de ella.\n¿Estás seguro?`;
       }
       if (window.confirm(confirmMsg)) {
-        // BUG CORREGIDO: Ahora el efecto dominó borra tanto las materias aprobadas como las que estés cursando que dependan de esta
         setPassedCourses((prev) => {
           const newPassed = { ...prev };
           delete newPassed[courseId];
@@ -697,6 +738,14 @@ export default function App() {
           : "bg-slate-50 text-slate-800"
       }`}
     >
+      <input
+        type="file"
+        accept=".json"
+        className="hidden"
+        ref={fileInputRef}
+        onChange={handleImportData}
+      />
+
       {/* Header */}
       <header
         className={`${
@@ -765,6 +814,28 @@ export default function App() {
 
             <div className="flex gap-1.5 ml-1">
               <button
+                onClick={() => fileInputRef.current?.click()}
+                className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg font-semibold transition-colors shadow-sm border ${
+                  isDarkMode
+                    ? "bg-slate-800 hover:bg-slate-700 border-slate-700"
+                    : "bg-blue-800 hover:bg-blue-700 border-blue-700"
+                }`}
+                title="Cargar Respaldo (.json)"
+              >
+                📂
+              </button>
+              <button
+                onClick={handleExportData}
+                className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg font-semibold transition-colors shadow-sm border ${
+                  isDarkMode
+                    ? "bg-slate-800 hover:bg-slate-700 border-slate-700"
+                    : "bg-blue-800 hover:bg-blue-700 border-blue-700"
+                }`}
+                title="Descargar Respaldo (.json)"
+              >
+                💾
+              </button>
+              <button
                 onClick={() => setShowInstructions(!showInstructions)}
                 className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg font-semibold transition-colors shadow-sm border ${
                   showInstructions
@@ -784,15 +855,9 @@ export default function App() {
                     ? "bg-slate-800 hover:bg-slate-700 border-slate-700 text-yellow-400"
                     : "bg-blue-800 hover:bg-blue-700 border-blue-700 text-slate-100"
                 }`}
+                title="Modo Oscuro / Claro"
               >
                 {isDarkMode ? "☀️" : "🌙"}
-              </button>
-              <button
-                onClick={resetProgress}
-                className="bg-red-500/90 hover:bg-red-500 w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg transition-colors shadow-sm text-white text-[10px]"
-                title="Reiniciar Todo"
-              >
-                🔄
               </button>
             </div>
           </div>
@@ -858,9 +923,9 @@ export default function App() {
             </div>
           </div>
           <p className="text-[11px] text-slate-400 mt-2 text-center font-medium">
-            🖱️ **Navegación libre en PC:** Mantén pulsado el clic izquierdo en
-            un área vacía y arrastra hacia cualquier dirección (360°) para
-            explorar todo el mapa.
+            🖱️ **Tip de Navegación:** Mantén pulsado el clic izquierdo en un
+            área vacía y arrastra para moverte libremente. Usa 💾 para guardar
+            tu progreso.
           </p>
         </div>
       )}
@@ -883,7 +948,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Grid de Semestres */}
+      {/* Grid de Semestres - ACTUALIZADO: Expandido para que el drag vertical funcione en PC */}
       <main
         ref={scrollContainerRef}
         onMouseDown={handleMouseDown}
@@ -892,7 +957,7 @@ export default function App() {
         onMouseMove={handleMouseMove}
         className="flex-1 overflow-auto p-4 sm:p-6 cursor-default active:cursor-grabbing [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 sm:[&::-webkit-scrollbar]:h-2.5 sm:[&::-webkit-scrollbar]:w-2.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600"
       >
-        <div className="flex flex-row gap-4 sm:gap-6 pb-6 min-w-max select-none">
+        <div className="flex flex-row gap-4 sm:gap-6 pb-20 sm:pb-32 min-w-max select-none">
           {Object.keys(semestersData).map((semKeyStr) => {
             const semKey = parseInt(semKeyStr, 10);
             const courses = semestersData[semKey];
@@ -1007,7 +1072,6 @@ export default function App() {
                     return (
                       <div
                         key={course.id}
-                        /* BUG CORREGIDO: Vuelve a ser onClick para asegurar que funcione en pantallas táctiles de celulares */
                         onClick={() => handleCourseClick(course.id)}
                         className={`p-2.5 sm:p-3 rounded transition-all duration-300 flex flex-col gap-1 relative overflow-hidden cursor-pointer ${bgClass} ${borderClass} ${pathingOpacity}`}
                       >
@@ -1114,9 +1178,9 @@ export default function App() {
         </div>
       </main>
 
-      {/* Modal Interactivo de Gestión */}
+      {/* ACTUALIZADO: Modal convertido en Bottom Sheet para móviles y teclado numérico configurado */}
       {modalData.isOpen && activeModalCourse && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
           <div
             className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
             onClick={() =>
@@ -1129,13 +1193,17 @@ export default function App() {
               })
             }
           ></div>
+
           <div
-            className={`relative w-full max-w-sm rounded-xl p-5 shadow-2xl border transition-colors duration-300 transform scale-100 ${
+            className={`relative w-full sm:max-w-sm rounded-t-3xl sm:rounded-xl p-5 sm:p-6 pb-10 sm:pb-6 shadow-2xl border-t sm:border transition-colors duration-300 transform scale-100 ${
               isDarkMode
                 ? "bg-slate-900 border-slate-800 text-slate-100"
                 : "bg-white border-slate-200 text-slate-800"
             }`}
           >
+            {/* Pequeña barra visual en celulares para dar aspecto de que desliza desde abajo */}
+            <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mb-4 sm:hidden"></div>
+
             <h3 className="text-base sm:text-lg font-bold tracking-tight mb-0.5">
               Gestionar Asignatura
             </h3>
@@ -1194,6 +1262,7 @@ export default function App() {
                   step="0.1"
                   min="0"
                   max="20"
+                  inputMode="decimal"
                   placeholder="Ej: 4.5 (deja en 0 si está iniciando)"
                   value={modalData.pointsStr}
                   onChange={(e) =>
@@ -1202,7 +1271,7 @@ export default function App() {
                       pointsStr: e.target.value,
                     }))
                   }
-                  className={`w-full p-2 rounded-lg border font-semibold text-center text-sm outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                  className={`w-full p-2.5 rounded-lg border font-semibold text-center text-lg sm:text-sm outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                     isDarkMode
                       ? "bg-slate-950 border-slate-800 focus:border-purple-500 text-white"
                       : "bg-slate-50 border-slate-200 focus:border-purple-600"
@@ -1222,7 +1291,7 @@ export default function App() {
                           noGrade: false,
                         })
                       }
-                      className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                      className={`flex-1 py-3 sm:py-2 rounded-lg text-xs font-semibold border transition-colors ${
                         isDarkMode
                           ? "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300"
                           : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-600"
@@ -1233,7 +1302,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleSaveModalData}
-                      className="flex-1 py-2 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white shadow-md transition-colors"
+                      className="flex-1 py-3 sm:py-2 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white shadow-md transition-colors"
                     >
                       Guardar Cursando
                     </button>
@@ -1257,7 +1326,7 @@ export default function App() {
                             noGrade: false,
                           });
                         }}
-                        className="w-full py-1.5 rounded-lg text-[11px] font-semibold text-red-500 bg-red-500/10 hover:bg-red-500/20 transition-colors mt-1"
+                        className="w-full py-2 sm:py-1.5 rounded-lg text-[11px] font-semibold text-red-500 bg-red-500/10 hover:bg-red-500/20 transition-colors mt-1"
                       >
                         Quitar de "Cursando"
                       </button>
@@ -1288,11 +1357,11 @@ export default function App() {
                         noGrade: e.target.checked,
                       }))
                     }
-                    className="rounded bg-slate-950 border-slate-800 text-blue-600 focus:ring-0 cursor-pointer w-4 h-4"
+                    className="rounded bg-slate-950 border-slate-800 text-blue-600 focus:ring-0 cursor-pointer w-5 h-5 sm:w-4 sm:h-4"
                   />
                   <label
                     htmlFor="noGradeCheck"
-                    className="text-xs font-medium opacity-80 cursor-pointer"
+                    className="text-xs sm:text-xs font-medium opacity-80 cursor-pointer"
                   >
                     Solo interactuar (Aprobar sin ingresar nota)
                   </label>
@@ -1307,6 +1376,7 @@ export default function App() {
                       type="number"
                       min="10"
                       max="20"
+                      inputMode="numeric"
                       placeholder="Ej: 16"
                       value={modalData.gradeStr}
                       onChange={(e) =>
@@ -1318,12 +1388,11 @@ export default function App() {
                       onKeyDown={(e) => {
                         if (e.key === "Enter") handleSaveModalData();
                       }}
-                      className={`w-full p-2.5 rounded-lg border font-semibold text-center text-lg outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                      className={`w-full p-3 sm:p-2.5 rounded-lg border font-semibold text-center text-xl sm:text-lg outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                         isDarkMode
                           ? "bg-slate-950 border-slate-800 focus:border-blue-500 text-white"
                           : "bg-slate-50 border-slate-200 focus:border-blue-600"
                       }`}
-                      autoFocus
                     />
                   </>
                 )}
@@ -1340,7 +1409,7 @@ export default function App() {
                         noGrade: false,
                       })
                     }
-                    className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                    className={`flex-1 py-3 sm:py-2 rounded-lg text-xs font-semibold border transition-colors ${
                       isDarkMode
                         ? "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300"
                         : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-600"
@@ -1351,7 +1420,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={handleSaveModalData}
-                    className="flex-1 py-2 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-md transition-colors"
+                    className="flex-1 py-3 sm:py-2 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-md transition-colors"
                   >
                     Guardar Nota
                   </button>
@@ -1394,14 +1463,19 @@ export default function App() {
             </div>
           </div>
           <div
-            className={`text-[10px] sm:text-xs text-center px-3 py-1 rounded-full border w-full sm:max-w-md ${
+            className={`flex items-center gap-3 text-[10px] sm:text-xs text-center px-3 py-1 rounded-full border w-full sm:max-w-md ${
               isDarkMode
                 ? "bg-slate-800 text-slate-500 border-slate-700"
                 : "bg-slate-100 text-slate-500 border-slate-200"
             }`}
           >
-            💡 Tip: Haz clic en el botón azul de libro (📘) de arriba para abrir
-            el manual de instrucciones.
+            <span>💡 Tip: Toca una materia para gestionarla.</span>
+            <button
+              onClick={handleExportData}
+              className="ml-auto underline hover:text-slate-300"
+            >
+              Guardar Progreso
+            </button>
           </div>
         </div>
       </footer>
